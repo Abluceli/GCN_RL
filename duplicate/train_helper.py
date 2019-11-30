@@ -1,17 +1,10 @@
 from __future__ import division
 from __future__ import print_function
 
-import time
-import argparse
-import numpy as np
-
-import torch
 import torch.nn.functional as F
-import torch.optim as optim
 
-from utils import *
-from models import GCN
-from sklearn.metrics import accuracy_score, f1_score
+from duplicate.utils import *
+
 
 def train_gcn(model, optimizer, features, adj):
     model.train()

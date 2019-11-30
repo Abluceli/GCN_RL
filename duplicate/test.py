@@ -1,19 +1,13 @@
 from __future__ import division
 from __future__ import print_function
 
-import time
 import argparse
-import numpy as np
 
-import torch
-import torch.nn.functional as F
 import torch.optim as optim
 
-from utils import *
-from models import *
-from sklearn.svm import SVC
+from duplicate.models import *
 
-from train_helper import *
+from duplicate.train_helper import *
 
 
 def get_reward(node_id, labels):
@@ -22,7 +16,7 @@ def get_reward(node_id, labels):
 
 def train(args):
     # Load data
-    adj, features, labels, idx_train, idx_val, idx_test = load_data2("BlogCatalog")
+    adj, features, labels, idx_train, idx_val, idx_test = load_data2("Flickr")
 
     # Model and optimizer
     model = GCN(nfeat=features.shape[1],

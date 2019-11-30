@@ -1,17 +1,12 @@
 from __future__ import division
 from __future__ import print_function
 
-import time
 import argparse
-import numpy as np
 
-import torch
-import torch.nn.functional as F
 import torch.optim as optim
 
-from utils import *
-from models import GCN
-from train_helper import *
+from duplicate.models import GCN
+from duplicate.train_helper import *
 
 
 def get_reward(node_id, labels):
