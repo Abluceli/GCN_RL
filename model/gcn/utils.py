@@ -15,6 +15,13 @@ def encode_onehot(labels):
     return labels_onehot
 
 
+def sample_mask(idx, l):
+    """Create mask."""
+    mask = np.zeros(l)
+    mask[idx] = 1
+    return np.array(mask, dtype=np.bool)
+
+
 def sparse_to_tuple(sparse_mx):
     if not sp.isspmatrix_coo(sparse_mx):
         sparse_mx = sparse_mx.tocoo()
@@ -36,19 +43,72 @@ def load_data(dataset):
     return adj_norm, features, labels
 
 
+def load_data_gcn(dataset, selected_id_list):
+    data = sio.loadmat("../data/{}.mat".format(dataset))
+    features = data["Attributes"]
+    adj = data["Network"]
+    labels = data['Label']
+
+    node_num = len(labels)
+    id_list = [i for i in range(0, node_num)]
+
+    remain_list = list(set(id_list).difference(set(selected_id_list)))
+    features_new = features[remain_list]
+    labels_new = labels[remain_list]
+    adj_new = adj[remain_list, :][:, remain_list]
+
+    node_perm = np.random.permutation(labels.shape[0])
+    num_train = int(0.1 * adj.shape[0])
+    num_val = int(0.2 * adj.shape[0])
+    idx_train = node_perm[:num_train]
+    idx_val = node_perm[num_train:num_train + num_val]
+    idx_test = node_perm[num_train + num_val:]
+
+    train_mask = sample_mask(idx_train, labels.shape[0])
+    val_mask = sample_mask(idx_val, labels.shape[0])
+    test_mask = sample_mask(idx_test, labels.shape[0])
+
+    y_train = np.zeros(labels.shape)
+    y_val = np.zeros(labels.shape)
+    y_test = np.zeros(labels.shape)
+    y_train[train_mask, :] = labels[train_mask, :]
+    y_val[val_mask, :] = labels[val_mask, :]
+    y_test[test_mask, :] = labels[test_mask, :]
+    return adj, features, y_train, y_val, y_test, train_mask, val_mask, test_mask
+
+
+
+def load_data_rgcn(dataset):
+    data = sio.loadmat("data/{}.mat".format(dataset))
+    features = data["Attributes"]
+    adj = data["Network"]
+    labels = [label[0] for label in data['Label']]
+
+    adj_1 = adj + sp.eye(adj.shape[0])
+    adj_2 = sp.eye(adj.shape[0])
+    adj_norm_1 = sparse_to_tuple(normalize_adj(adj_1))
+    adj_norm_2 = sparse_to_tuple(normalize_adj(adj_2))
+
+    features = sparse_to_tuple(features)
+
+    return adj_norm_1, adj_norm_2, adj_1, adj_2, features, labels
+
+
 def get_placeholder():
     placeholders = {
-        'adj': tf.sparse_placeholder(tf.float32),
+        'adj_1': tf.sparse_placeholder(tf.float32),
+        'adj_2': tf.sparse_placeholder(tf.float32),
         'features': tf.sparse_placeholder(tf.float32),
         'dropout': tf.placeholder_with_default(0., shape=())
     }
     return placeholders
 
 
-def construct_feed_dict(adj, features, dropout, placeholders):
+def construct_feed_dict(adj_1, adj_2, features, dropout, placeholders):
     """Construct feed dictionary."""
     feed_dict = dict()
-    feed_dict.update({placeholders['adj']: adj})
+    feed_dict.update({placeholders['adj_1']: adj_1})
+    feed_dict.update({placeholders['adj_2']: adj_2})
     feed_dict.update({placeholders['features']: features})
     feed_dict.update({placeholders['dropout']: dropout})
     return feed_dict
@@ -79,6 +139,25 @@ def accuracy(output, labels):
     correct = preds.eq(labels).double()
     correct = correct.sum()
     return correct / len(labels)
+
+
+def update_adj(selected_node_id, adj_1, adj_2):
+
+    adj_2[selected_node_id, :] = adj_1[selected_node_id, :]
+    adj_2[:, selected_node_id] = adj_1[:, selected_node_id]
+    adj_1[selected_node_id, :] = 0
+    adj_1[:, selected_node_id] = 0
+    adj_1[selected_node_id, selected_node_id] = 1
+
+    adj_norm_1 = sparse_to_tuple(adj_1)
+    adj_norm_2 = sparse_to_tuple(adj_2)
+
+    return adj_norm_1, adj_norm_2, adj_1, adj_2
+
+
+
+
+
 
 
 

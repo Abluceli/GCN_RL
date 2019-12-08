@@ -5,19 +5,25 @@ import argparse
 
 import tensorflow as tf
 
-from gcn.models import GCN
+from gcn.models import *
 from gcn.utils import *
 
 
-def get_reward(node_id, labels):
-    return labels[node_id]
+def get_reward_simple(selected_list, labels):
+
+    count = 0
+    for id in selected_list:
+        if labels[id] == 1:
+            count += 1
+
+    return count / len(selected_list)
 
 
 def model_train(dataset):
 
     # Load data
-    adj, features, labels = load_data(dataset)
-    num_nodes = adj[2][0]
+    adj_norm_1, adj_norm_2, adj_1, adj_2, features, labels = load_data_rgcn(dataset)
+    num_nodes = adj_norm_1[2][0]
     num_features = features[2][1]
     features_nonzero = features[1].shape[0]
 
@@ -25,8 +31,8 @@ def model_train(dataset):
     placeholders = get_placeholder()
 
     # Create Model
-    model_gcn = GCN(placeholders, num_features, features_nonzero)
-    state_representations = model_gcn.outputs
+    model_rgcn = RGCN(placeholders, num_features, features_nonzero)
+    state_representations = model_rgcn.outputs
 
     # Create Optimizer
     optimizer = tf.train.AdamOptimizer(learning_rate=FLAGS.learning_rate)
@@ -35,9 +41,10 @@ def model_train(dataset):
     sess = tf.Session()
     sess.run(tf.global_variables_initializer())
 
+    selected_list = []
     # Training
     for epoch in range(FLAGS.epochs):
-        feed_dict = construct_feed_dict(adj, features, FLAGS.dropout, placeholders)
+        feed_dict = construct_feed_dict(adj_norm_1, adj_norm_2, features, FLAGS.dropout, placeholders)
         # outs = sess.run([model_gcn.opt_op, model_gcn.loss, state_representations], feed_dict=feed_dict)
 
 
@@ -49,6 +56,14 @@ def model_train(dataset):
         reward = get_reward(selected_node_id, labels)
         RL_model.update(selected_node_id, state, reward)
         """
+
+        # Update adjacency matrices
+        selected_node_id = None
+        selected_list.append(selected_node_id)
+        reward = get_reward_simple(selected_list, labels)
+        adj_norm_1, adj_norm_2, adj_1, adj_2 = update_adj(selected_node_id, adj_1, adj_2)
+
+        # Update RL model
 
 
 if __name__ == '__main__':

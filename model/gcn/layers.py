@@ -102,3 +102,54 @@ class GraphConvolutionSparse(Layer):
         x = tf.sparse_tensor_dense_matmul(self.adj, x)
         outputs = self.act(x)
         return outputs
+
+
+class RelationalGraphConvolution(Layer):
+    """Basic graph convolution layer for undirected graph without edge labels."""
+    def __init__(self, input_dim, output_dim, adj_1, adj_2, dropout=0., act=tf.nn.relu, **kwargs):
+        super(RelationalGraphConvolution, self).__init__(**kwargs)
+        with tf.variable_scope(self.name + '_vars'):
+            self.vars['weights_1'] = weight_variable_glorot(input_dim, output_dim, name="weights_1")
+            self.vars['weights_2'] = weight_variable_glorot(input_dim, output_dim, name="weights_2")
+        self.dropout = dropout
+        self.adj_1 = adj_1
+        self.adj_2 = adj_2
+        self.act = act
+
+    def _call(self, inputs):
+        x = tf.nn.dropout(inputs, 1-self.dropout)
+
+        x_1 = tf.matmul(x, self.vars['weights_1'])
+        x_1 = tf.sparse_tensor_dense_matmul(self.adj_1, x_1)
+
+        x_2 = tf.matmul(x, self.vars['weights_2'])
+        x_2 = tf.sparse_tensor_dense_matmul(self.adj_2, x_2)
+        outputs = self.act(x_1 + x_2)
+        return outputs
+
+
+class RelationalGraphConvolutionSparse(Layer):
+    """Graph convolution layer for sparse inputs."""
+    def __init__(self, input_dim, output_dim, adj_1, adj_2, features_nonzero, dropout=0., act=tf.nn.relu, **kwargs):
+        super(RelationalGraphConvolutionSparse, self).__init__(**kwargs)
+        with tf.variable_scope(self.name + '_vars'):
+            self.vars['weights_1'] = weight_variable_glorot(input_dim, output_dim, name="weights_1")
+            self.vars['weights_2'] = weight_variable_glorot(input_dim, output_dim, name="weights_2")
+        self.dropout = dropout
+        self.adj_1 = adj_1
+        self.adj_2 = adj_2
+        self.act = act
+        self.issparse = True
+        self.features_nonzero = features_nonzero
+
+    def _call(self, inputs):
+        x = dropout_sparse(inputs, 1-self.dropout, self.features_nonzero)
+
+        x_1 = tf.sparse_tensor_dense_matmul(x, self.vars['weights_1'])
+        x_1 = tf.sparse_tensor_dense_matmul(self.adj_1, x_1)
+
+        x_2 = tf.sparse_tensor_dense_matmul(x, self.vars['weights_2'])
+        x_2 = tf.sparse_tensor_dense_matmul(self.adj_2, x_2)
+
+        outputs = self.act(x_1 + x_2)
+        return outputs
