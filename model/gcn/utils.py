@@ -77,7 +77,6 @@ def load_data_gcn(dataset, selected_id_list):
     return adj, features, y_train, y_val, y_test, train_mask, val_mask, test_mask
 
 
-
 def load_data_rgcn(dataset):
     data = sio.loadmat("data/{}.mat".format(dataset))
     features = data["Attributes"]
@@ -88,6 +87,9 @@ def load_data_rgcn(dataset):
     adj_2 = sp.eye(adj.shape[0])
     adj_norm_1 = sparse_to_tuple(normalize_adj(adj_1))
     adj_norm_2 = sparse_to_tuple(normalize_adj(adj_2))
+
+    adj_1 = adj_1.tolil()
+    adj_2 = adj_2.tolil()
 
     features = sparse_to_tuple(features)
 
@@ -143,11 +145,16 @@ def accuracy(output, labels):
 
 def update_adj(selected_node_id, adj_1, adj_2):
 
+    # adj_1 = adj_1.todense()
+    # adj_2 = adj_2.todense()
     adj_2[selected_node_id, :] = adj_1[selected_node_id, :]
     adj_2[:, selected_node_id] = adj_1[:, selected_node_id]
     adj_1[selected_node_id, :] = 0
     adj_1[:, selected_node_id] = 0
     adj_1[selected_node_id, selected_node_id] = 1
+
+    # adj_1 = sp.csr_matrix(adj_1)
+    # adj_2 = sp.csr_matrix(adj_2)
 
     adj_norm_1 = sparse_to_tuple(adj_1)
     adj_norm_2 = sparse_to_tuple(adj_2)

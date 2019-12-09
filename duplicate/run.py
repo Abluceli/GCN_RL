@@ -3,86 +3,89 @@ from __future__ import print_function
 
 import argparse
 
-import torch.optim as optim
+import tensorflow as tf
 
-from duplicate.models import GCN
-from duplicate.train_helper import *
-
-
-def get_reward(node_id, labels):
-    return labels[node_id]
+from gcn.models import *
+from gcn.utils import *
 
 
-def train(args):
+def get_reward_simple(selected_list, labels):
+
+    count = 0
+    for id in selected_list:
+        if labels[id] == 1:
+            count += 1
+
+    return count / len(selected_list)
+
+
+def model_train(dataset):
+
     # Load data
-    adj, features, labels = load_data("BlogCatalog")
+    adj_norm_1, adj_norm_2, adj_1, adj_2, features, labels = load_data_rgcn(dataset)
+    num_nodes = adj_norm_1[2][0]
+    num_features = features[2][1]
+    features_nonzero = features[1].shape[0]
 
-    # Model and optimizer
-    model = GCN(nfeat=features.shape[1],
-                nhid=args.hidden,
-                dropout=args.dropout)
-    optimizer = optim.Adam(model.parameters(),
-                           lr=args.lr, weight_decay=args.weight_decay)
-    """add your rl model"""
-    RL_model = None
+    # Define placeholders
+    placeholders = get_placeholder()
 
-    if args.cuda:
-        model.cuda()
-        features = features.cuda()
-        adj = adj.cuda()
+    # Create Model
+    model_rgcn_main = RGCN(placeholders, num_features, features_nonzero, "main")
+    model_rgcn_target = RGCN(placeholders, num_features, features_nonzero, "target")
+    # state_representations = model_rgcn.outputs
 
+    # Create Optimizer
+    optimizer = tf.train.AdamOptimizer(learning_rate=FLAGS.learning_rate)
+
+    # Initialize session
+    sess = tf.Session()
+    sess.run(tf.global_variables_initializer())
+
+    selected_list = []
     # Training
-    for epoch in range(args.epochs):
-        # GCN
-        for _ in range(args.embedding_step):
-            ae_loss = train_gcn(model, optimizer, features, adj)
-            print("AE loss: {}".format(ae_loss))
-        print("GCN training done...")
+    for epoch in range(FLAGS.epochs):
+        feed_dict = construct_feed_dict(adj_norm_1, adj_norm_2, features, FLAGS.dropout, placeholders)
+        # outs = sess.run([model_gcn.opt_op, model_gcn.loss, state_representations], feed_dict=feed_dict)
 
-        state = model.embeddings  # number of nodes x embedding dimension
 
         # RL
-        """add more """
+        """
+        pseudo code 
+        
         selected_node_id = RL_model.act(state)
         reward = get_reward(selected_node_id, labels)
         RL_model.update(selected_node_id, state, reward)
+        """
 
-        # update state
+        # Update adjacency matrices
+        selected_node_id = None
+        selected_list.append(selected_node_id)
+        reward = get_reward_simple(selected_list, labels)
+        adj_norm_1, adj_norm_2, adj_1, adj_2 = update_adj(selected_node_id, adj_1, adj_2)
 
-
-
-    model.gc1.reset_parameters()
-    model.gc2.reset_parameters()
+        # Update RL model
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--no-cuda', action='store_true', default=False,
-                        help='Disables CUDA training.')
-    parser.add_argument('--fastmode', action='store_true', default=False,
-                        help='Validate during training pass.')
-    parser.add_argument('--seed', type=int, default=123, help='Random seed.')
-    parser.add_argument('--epochs', type=int, default=100,
-                        help='Number of epochs to train.')
-    parser.add_argument('--lr', type=float, default=0.01,
-                        help='Initial learning rate.')
-    parser.add_argument('--weight_decay', type=float, default=5e-4,
-                        help='Weight decay (L2 loss on parameters).')
-    parser.add_argument('--hidden', type=int, default=16,
-                        help='Number of hidden units.')
-    parser.add_argument('--embedding_step', type=int, default=16,
-                        help='Number of GCN embedding step.')
-    parser.add_argument('--dropout', type=float, default=0.5,
-                        help='Dropout rate (1 - keep probability).')
 
-    args = parser.parse_args()
-    args.cuda = not args.no_cuda and torch.cuda.is_available()
+    # Set random seed
+    seed = 123
+    np.random.seed(seed)
+    tf.set_random_seed(seed)
 
-    np.random.seed(args.seed)
-    torch.manual_seed(args.seed)
-    if args.cuda:
-        torch.cuda.manual_seed(args.seed)
+    # Settings
+    flags = tf.app.flags
+    FLAGS = flags.FLAGS
+    flags.DEFINE_string('model', 'gcn', 'Model string.')  # 'gcn', 'gcn_cheby', 'dense'
+    flags.DEFINE_float('learning_rate', 0.01, 'Initial learning rate.')
+    flags.DEFINE_integer('epochs', 200, 'Number of epochs to train.')
+    flags.DEFINE_float('dropout', 0.5, 'Dropout rate (1 - keep probability).')
+    flags.DEFINE_float('weight_decay', 5e-4, 'Weight for L2 loss on embedding matrix.')
+    flags.DEFINE_integer('early_stopping', 10, 'Tolerance for early stopping (# of epochs).')
+    flags.DEFINE_integer('hidden1', 32, 'Number of units in hidden layer 1.')
+    flags.DEFINE_integer('hidden2', 16, 'Number of units in hidden layer 2.')
 
-    train(args)
-
+    dataset = "BlogCatalog"
+    model_train(dataset)
 

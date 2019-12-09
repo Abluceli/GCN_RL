@@ -1,4 +1,6 @@
 .idea/
+model/log/
+model/model/
 *.pyc
 build/
 dist/

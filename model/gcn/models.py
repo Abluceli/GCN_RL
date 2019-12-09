@@ -82,17 +82,18 @@ class GCN(Model):
 
 
 class RGCN(Model):
-    def __init__(self, placeholders, num_features, features_nonzero, **kwargs):
-        super(RGCN, self).__init__(**kwargs)
+    def __init__(self, placeholders, num_features, features_nonzero, scope, **kwargs):
+        with tf.variable_scope(scope):
+            super(RGCN, self).__init__(**kwargs)
 
-        self.inputs = placeholders['features']
-        self.adj_1 = placeholders['adj_1']
-        self.adj_2 = placeholders['adj_2']
-        self.dropout = placeholders['dropout']
-        self.input_dim = num_features
-        self.features_nonzero = features_nonzero
+            self.inputs = placeholders['features']
+            self.adj_1 = placeholders['adj_1']
+            self.adj_2 = placeholders['adj_2']
+            self.dropout = placeholders['dropout']
+            self.input_dim = num_features
+            self.features_nonzero = features_nonzero
 
-        self.build()
+            self.build()
 
     def _build(self):
         self.hidden1 = RelationalGraphConvolutionSparse(input_dim=self.input_dim,
